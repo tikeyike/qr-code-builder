@@ -10,23 +10,49 @@ const opts = {
 
 module.exports.post = async function (req, res) {
   const formUrl = req.body.submission.formUrl
-  const repeatableSet = req.body.submission.elements
+  const elements = req.body.submission.elements
+  const repeatableSets = req.body.submission.repeatableSets
 
   let url = formUrl + '?preFillData={'
-  repeatableSet.map((elem) => (url += `"${elem.elementName}":"${elem.value}",`))
-  url = url.slice(0, -1)
+
+  // Extract elements from submission
+  elements.map((elem) => (url += `"${elem.elementName}":"${elem.value}",`))
+
+  // Extract repeatableSets from submission
+  if (repeatableSets && repeatableSets.length > 0) {
+    repeatableSets.map((set, index) => {
+      url += `"${set.repeatableSetName}":[`
+      let repeatableSetElements = {}
+      set.repeatableSetElements.map(
+        (elem) => (repeatableSetElements[elem.elementName] = elem.value)
+      )
+      url += `${JSON.stringify(repeatableSetElements)}`
+      if (index !== repeatableSets.length - 1) {
+        url += '],'
+      } else {
+        url += ']'
+      }
+    })
+  } else {
+    // Remove last comma
+    url = url.slice(0, -1)
+  }
+
+  // Close preFillData
   url += '}'
+
+  console.log(url)
 
   const generatedURI = await QRCode.toDataURL(url, opts)
 
-  let elements = []
+  let generatedElements = []
   const qrcode = OneBlink.Forms.generateFormElement({
     type: 'image',
     name: 'qrcode',
     label: 'qrcode',
     defaultValue: generatedURI,
   })
-  elements.push(qrcode)
+  generatedElements.push(qrcode)
 
   const generatedUrl = OneBlink.Forms.generateFormElement({
     type: 'html',
@@ -34,7 +60,7 @@ module.exports.post = async function (req, res) {
     label: 'generatedUrl',
     defaultValue: url,
   })
-  elements.push(generatedUrl)
+  generatedElements.push(generatedUrl)
 
-  return res.setStatusCode(200).setPayload(elements)
+  return res.setStatusCode(200).setPayload(generatedElements)
 }
